@@ -18,7 +18,7 @@ from viam.app.viam_client import ViamClient
 
 
 def parse_args():
-    """Dataset file and model output directory are required parameters. These must be parsed as command line
+    """Returns dataset file and model output directory. These must be parsed as command line
     arguments and then used as the model input and output, respectively.
     """
     parser = argparse.ArgumentParser()
@@ -29,6 +29,7 @@ def parse_args():
 
 
 async def connect() -> ViamClient:
+    """Returns a authenticated connection to the ViamClient for the requested org associated with the submitted training job."""
     # The API key and key ID can be accessed programmatically, using the environment variable API_KEY and API_KEY_ID.
     # The user does not need to supply the API keys, they are provided automatically when the training job is submitted.
     dial_options = DialOptions.with_api_key(
@@ -38,6 +39,12 @@ async def connect() -> ViamClient:
 
 
 async def get_data_from_filter(data_client, my_filter, reading_name):
+    """Returns data for a filter based on the name in the sensor readings
+    Args:
+        data_client: an authenticated data client to query for the sensor data
+        my_filter: filter for querying the tabular data
+        reading_name: the key in the sensors readings map
+    """
     # Store the data in a map, where the key is the date time
     data = {}
     last = None
@@ -70,6 +77,15 @@ def create_dataset(
     shuffle_buffer_size,
     prefetch_buffer_size,
 ) -> ty.Tuple[tf.data.Dataset, tf.data.Dataset]:
+    """Return TF Dataset of training data and test data
+    Args:
+        input_data: tabular data that will be used as input to the model
+        output_data: tabular data corresponding to the quantity that will be predicted from the model
+        train_split: float between 0 to 1 representing the proportion of data that will be used for training
+        batch_size: size for number of samples for each training iteration
+        shuffle_buffer_size: size for buffer that will be filled and randomly sampled from, with replacement
+        prefetch_buffer_size: size for the number of batches that will be buffered when prefetching
+    """
     intersection_dates = set(output_data.keys())
     # Filter through the dataset and find the intersection of all the times
     # Note, that it's possible that the times don't intersect at all,
@@ -124,11 +140,15 @@ def create_dataset(
     return train_dataset, test_dataset
 
 
-def build_and_compile_model(norm):
+def build_and_compile_model(batch_size):
+    """Returns built regression model with normalization layers
+    Args:
+        batch_size: batch size used for dataset creation
+    """
     model = tf.keras.Sequential(
         [
-            tf.keras.Input(shape=(1,), batch_size=32),
-            norm,
+            tf.keras.Input(shape=(1,), batch_size=batch_size),
+            tf.keras.layers.Normalization(axis=-1),
             tf.keras.layers.Dense(64, activation="relu"),
             tf.keras.layers.Dense(64, activation="relu"),
             tf.keras.layers.Dense(1),
@@ -140,6 +160,11 @@ def build_and_compile_model(norm):
 
 
 async def get_all_data_from_viam(input_names, output_name):
+    """Returns input data and output data from Viam based on component names
+    Args:
+        input_names: list of component names used as input data
+        output_name: component name of the data that the model will try to predict
+    """
     # Make a ViamClient
     viam_client = await connect()
     # Instantiate a DataClient to run data client API methods on
@@ -160,9 +185,16 @@ async def get_all_data_from_viam(input_names, output_name):
     viam_client.close()
     return input_data, output_data
 
+
 def save_model(model, model_dir):
+    """Saves the trained model in SavedModel format to the specified directory
+    Args:
+        model: trained TensorFlow model
+        model_dir: output directory
+    """
     # Save the trained model in SavedModel format
     tf.saved_model.save(model, model_dir)
+
 
 if __name__ == "__main__":
     # Set up compute device strategy
@@ -202,8 +234,7 @@ if __name__ == "__main__":
         prefetch_buffer_size=AUTOTUNE,
     )
 
-    normalizer = tf.keras.layers.Normalization(axis=-1)
-    regression_model = build_and_compile_model(normalizer)
+    regression_model = build_and_compile_model(BATCH_SIZE)
 
     history = regression_model.fit(train_dataset, epochs=EPOCHS)
 
