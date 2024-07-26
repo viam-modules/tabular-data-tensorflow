@@ -29,7 +29,8 @@ def parse_args():
 
 
 async def connect() -> ViamClient:
-    # The API key and key ID can be accessed programmatically, using the environment variable API_KEY and API_KEY_ID
+    # The API key and key ID can be accessed programmatically, using the environment variable API_KEY and API_KEY_ID.
+    # The user does not need to supply the API keys, they are provided automatically when the training job is submitted.
     dial_options = DialOptions.with_api_key(
         os.environ.get("API_KEY"), os.environ.get("API_KEY_ID")
     )
@@ -88,14 +89,16 @@ def create_dataset(
 
         labels.append(output_data[date])
 
+    # Group together all the inputs for training
     input_tensors = {}
-    output_tensor = tf.data.Dataset.from_tensor_slices(labels)
     for key in input_keys:
         input_tensors[key] = tf.data.Dataset.from_tensor_slices(
             np.expand_dims(np.array(features[key]), axis=-1)
         )
     inputs = tf.data.Dataset.zip((input_tensors))
 
+    # Couple the inputs and outputs together
+    output_tensor = tf.data.Dataset.from_tensor_slices(labels)
     dataset = tf.data.Dataset.zip((inputs, output_tensor))
 
     # Shuffle the data for each buffer size
@@ -126,7 +129,7 @@ def build_and_compile_model(norm):
         [
             tf.keras.Input(shape=(1,), batch_size=32),
             norm,
-            #   tf.keras.layers.Dense(64, activation='relu'),
+            tf.keras.layers.Dense(64, activation="relu"),
             tf.keras.layers.Dense(64, activation="relu"),
             tf.keras.layers.Dense(1),
         ]
@@ -136,7 +139,7 @@ def build_and_compile_model(norm):
     return model
 
 
-async def get_all_data_from_viam():
+async def get_all_data_from_viam(input_names, output_name):
     # Make a ViamClient
     viam_client = await connect()
     # Instantiate a DataClient to run data client API methods on
@@ -144,18 +147,14 @@ async def get_all_data_from_viam():
 
     # Get all of the input data
     input_data = {}
-    input_data["temperature"] = await get_data_from_filter(
-        data_client, create_filter(component_name="temperature"), "temperature"
-    )
-    input_data["humidity"] = await get_data_from_filter(
-        data_client, create_filter(component_name="humidity"), "humidity"
-    )
+    for name in input_names:
+        input_data[name] = await get_data_from_filter(
+            data_client, create_filter(component_name=name), name
+        )
 
     # Get the output data
-    output_filter = create_filter(component_name="precipitation")
-    output_data = await get_data_from_filter(
-        data_client, output_filter, "precipitation"
-    )
+    output_filter = create_filter(component_name=output_name)
+    output_data = await get_data_from_filter(data_client, output_filter, output_name)
 
     # Close ViamClient
     viam_client.close()
@@ -183,7 +182,10 @@ if __name__ == "__main__":
     DATA_JSON, MODEL_DIR = parse_args()
 
     # Query and process the data from Viam so only the fields relevant to training are used
-    input_data, output_data = asyncio.run(get_all_data_from_viam())
+    # Provide input names, a list of sensor values that will be used to model the output value, specified by output name.
+    input_data, output_data = asyncio.run(
+        get_all_data_from_viam(["temperature", "humidity"], "precipitation")
+    )
 
     # Create the datasets which includes cleaning it up to make sure they are synchronized
     train_dataset, test_dataset = create_dataset(
