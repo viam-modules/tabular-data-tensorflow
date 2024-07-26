@@ -4,9 +4,10 @@ import os
 import sys
 import typing as ty
 
+import numpy as np
 import tensorflow as tf
 from keras import Model
-
+import datetime
 import tensorflow as tf
 import viam
 from viam.utils import create_filter
@@ -40,15 +41,67 @@ async def get_data_from_filter(data_client, my_filter, reading_name):
         if not tabular_data:
             break
         for datum in tabular_data:
-            data[datum.time_received] = datum.data["readings"][reading_name]
+            time_received = datum.time_received
+            # Truncate the time in place so it can be used for time synchronization of the data
+            truncated_time = datetime.datetime(time_received.year, time_received.month, time_received.day,
+                                               time_received.hour, time_received.minute, time_received.second)
+            data[truncated_time] = datum.data["readings"][reading_name]
     return data
 
 def create_dataset(input_data, output_data):
-    # Filter through the dataset and get data for every second
-    return 
+    intersection_dates = set(output_data.keys())
+    # Filter through the dataset and find the intersection of all the times
+    # Note, that it's possible that the times don't intersect at all,
+    # in which case one should employ some other technique for time synchronization
+    input_keys = input_data.keys()
+    for key in input_keys:
+        intersection_dates.intersection(set(input_data[key].keys()))
+
+    features = {key: [] for key in input_keys}
+    labels = []
+
+    # Update the dictionaries to only have the data belonging to the dates in the 
+    # intersection of all the datasets.
+    for date in intersection_dates: 
+        for key in input_keys:
+            features[key] = features[key] + [input_data[key][date]]
+
+        labels.append(output_data[date])
+
+    input_tensors = {}
+    output_tensor = tf.data.Dataset.from_tensor_slices(labels)
+    for key in input_keys:
+        input_tensors[key] = tf.data.Dataset.from_tensor_slices(np.expand_dims(np.array(features[key]), axis=-1))
+    inputs = tf.data.Dataset.zip((input_tensors))
+    
+    batch_size = shuffle_buffer_size = 32 
+    dataset = tf.data.Dataset.zip((inputs, output_tensor))
+
+    # Shuffle the data for each buffer size
+    # Disabling reshuffling ensures items from the training and test set will not get shuffled into each other
+    dataset = dataset.shuffle(
+        buffer_size=shuffle_buffer_size, reshuffle_each_iteration=False
+    )
+
+    train_size = int(0.8 * len(intersection_dates))
+    train_dataset = dataset.take(train_size)
+    test_dataset = dataset.skip(train_size)
+
+    # Batch the data for multiple steps
+    # If the size of training data is smaller than the batch size,
+    # batch the data to expand the dimensions by a length 1 axis.
+    # This will ensure that the training data is valid model input
+    train_batch_size = batch_size if batch_size < train_size else train_size
+    train_dataset = train_dataset.batch(train_batch_size)
+
+    # Fetch batches in the background while the model is training.
+    train_dataset = train_dataset.prefetch(buffer_size=16)
+
+    return train_dataset, test_dataset
         
 def build_and_compile_model(norm):
   model = tf.keras.Sequential([
+      tf.keras.Input(shape=(1,), batch_size=32),
       norm,
       tf.keras.layers.Dense(64, activation='relu'),
       tf.keras.layers.Dense(64, activation='relu'),
@@ -86,9 +139,6 @@ if __name__ == '__main__':
         strategy = tf.distribute.OneDeviceStrategy(device="/cpu:0")
 
     BATCH_SIZE = 16
-    # TARGET_SHAPE is the intended shape of the model after resizing
-    # For EfficientNet, this must be some multiple of 128 according to the documentation.
-    TARGET_SHAPE = (384, 384, 3)
     SHUFFLE_BUFFER_SIZE = (
         64  # Shuffle the training data by a chunk of 64 observations
     )
@@ -103,18 +153,17 @@ if __name__ == '__main__':
 
     DATA_JSON, MODEL_DIR = parse_args()
 
+    # Query and process the data from Viam so only the fields relevant to training are used
     input_data, output_data = asyncio.run(get_all_data_from_viam())
 
     # Create the datasets which includes cleaning it up to make sure they are synchronized
-    train_features, train_labels, test_features, test_labels = create_dataset(input_data, output_data)
+    train_dataset, test_dataset = create_dataset(input_data, output_data)
 
     normalizer = tf.keras.layers.Normalization(axis=-1)
     regression_model = build_and_compile_model(normalizer)
 
     history = regression_model.fit(
-        train_features,
-        train_labels,
-        validation_split=0.2,
+        train_dataset,
         epochs=100)
 
 
