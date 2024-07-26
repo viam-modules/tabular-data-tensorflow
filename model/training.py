@@ -160,6 +160,9 @@ async def get_all_data_from_viam(input_names, output_name):
     viam_client.close()
     return input_data, output_data
 
+def save_model(model, model_dir):
+    # Save the trained model in SavedModel format
+    tf.saved_model.save(model, model_dir)
 
 if __name__ == "__main__":
     # Set up compute device strategy
@@ -179,7 +182,9 @@ if __name__ == "__main__":
     GLOBAL_BATCH_SIZE = BATCH_SIZE * NUM_WORKERS
     EPOCHS = 2
 
-    DATA_JSON, MODEL_DIR = parse_args()
+    # DATA_JSON is ignored in this case but can be used if combining
+    # tabular and binary data for model training.
+    _, MODEL_DIR = parse_args()
 
     # Query and process the data from Viam so only the fields relevant to training are used
     # Provide input names, a list of sensor values that will be used to model the output value, specified by output name.
@@ -201,3 +206,5 @@ if __name__ == "__main__":
     regression_model = build_and_compile_model(normalizer)
 
     history = regression_model.fit(train_dataset, epochs=EPOCHS)
+
+    save_model(regression_model, MODEL_DIR)
