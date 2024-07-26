@@ -18,14 +18,15 @@ from viam.app.viam_client import ViamClient
 
 
 def parse_args():
-    """Returns dataset file and model output directory. These must be parsed as command line
-    arguments and then used as the model input and output, respectively.
+    """Returns dataset file, model output directory, and num_epochs if present. These must be parsed as command line
+    arguments and then used as the model input and output, respectively. The number of epochs can be used to optionally override the default.
     """
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset_file", dest="data_json", type=str)
     parser.add_argument("--model_output_directory", dest="model_dir", type=str)
+    parser.add_argument("--num_epochs", dest="num_epochs", type=int)
     args = parser.parse_args()
-    return args.data_json, args.model_dir
+    return args.data_json, args.model_dir, args.num_epochs
 
 
 async def connect() -> ViamClient:
@@ -212,12 +213,12 @@ if __name__ == "__main__":
     # Model constants
     NUM_WORKERS = strategy.num_replicas_in_sync
     GLOBAL_BATCH_SIZE = BATCH_SIZE * NUM_WORKERS
-    EPOCHS = 2
 
     # DATA_JSON is ignored in this case but can be used if combining
     # tabular and binary data for model training.
-    _, MODEL_DIR = parse_args()
+    _, MODEL_DIR, num_epochs = parse_args()
 
+    EPOCHS = 200 if num_epochs == None or 0 else num_epochs
     # Query and process the data from Viam so only the fields relevant to training are used
     # Provide input names, a list of sensor values that will be used to model the output value, specified by output name.
     input_data, output_data = asyncio.run(
