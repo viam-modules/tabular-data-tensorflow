@@ -18,8 +18,8 @@ from viam.app.viam_client import ViamClient
 
 
 def parse_args():
-    """Dataset file and model output directory are required parameters. These must be parsed as command line 
-        arguments and then used as the model input and output, respectively.
+    """Dataset file and model output directory are required parameters. These must be parsed as command line
+    arguments and then used as the model input and output, respectively.
     """
     parser = argparse.ArgumentParser()
     parser.add_argument("--dataset_file", dest="data_json", type=str)
@@ -27,28 +27,48 @@ def parse_args():
     args = parser.parse_args()
     return args.data_json, args.model_dir
 
+
 async def connect() -> ViamClient:
-    # The API key and key ID can be accessed programmatically, using the environment variable API_KEY and API_KEY_ID 
-    dial_options = DialOptions.with_api_key(os.environ.get('API_KEY'), os.environ.get('API_KEY_ID'))
+    # The API key and key ID can be accessed programmatically, using the environment variable API_KEY and API_KEY_ID
+    dial_options = DialOptions.with_api_key(
+        os.environ.get("API_KEY"), os.environ.get("API_KEY_ID")
+    )
     return await ViamClient.create_from_dial_options(dial_options, "app.viam.com")
+
 
 async def get_data_from_filter(data_client, my_filter, reading_name):
     # Store the data in a map, where the key is the date time
     data = {}
     last = None
     while True:
-        tabular_data, _, last = await data_client.tabular_data_by_filter(my_filter, last=last)
+        tabular_data, _, last = await data_client.tabular_data_by_filter(
+            my_filter, last=last
+        )
         if not tabular_data:
             break
         for datum in tabular_data:
             time_received = datum.time_received
             # Truncate the time in place so it can be used for time synchronization of the data
-            truncated_time = datetime.datetime(time_received.year, time_received.month, time_received.day,
-                                               time_received.hour, time_received.minute, time_received.second)
+            truncated_time = datetime.datetime(
+                time_received.year,
+                time_received.month,
+                time_received.day,
+                time_received.hour,
+                time_received.minute,
+                time_received.second,
+            )
             data[truncated_time] = datum.data["readings"][reading_name]
     return data
 
-def create_dataset(input_data, output_data):
+
+def create_dataset(
+    input_data,
+    output_data,
+    train_split,
+    batch_size,
+    shuffle_buffer_size,
+    prefetch_buffer_size,
+) -> ty.Tuple[tf.data.Dataset, tf.data.Dataset]:
     intersection_dates = set(output_data.keys())
     # Filter through the dataset and find the intersection of all the times
     # Note, that it's possible that the times don't intersect at all,
@@ -60,9 +80,9 @@ def create_dataset(input_data, output_data):
     features = {key: [] for key in input_keys}
     labels = []
 
-    # Update the dictionaries to only have the data belonging to the dates in the 
+    # Update the dictionaries to only have the data belonging to the dates in the
     # intersection of all the datasets.
-    for date in intersection_dates: 
+    for date in intersection_dates:
         for key in input_keys:
             features[key] = features[key] + [input_data[key][date]]
 
@@ -71,10 +91,11 @@ def create_dataset(input_data, output_data):
     input_tensors = {}
     output_tensor = tf.data.Dataset.from_tensor_slices(labels)
     for key in input_keys:
-        input_tensors[key] = tf.data.Dataset.from_tensor_slices(np.expand_dims(np.array(features[key]), axis=-1))
+        input_tensors[key] = tf.data.Dataset.from_tensor_slices(
+            np.expand_dims(np.array(features[key]), axis=-1)
+        )
     inputs = tf.data.Dataset.zip((input_tensors))
-    
-    batch_size = shuffle_buffer_size = 32 
+
     dataset = tf.data.Dataset.zip((inputs, output_tensor))
 
     # Shuffle the data for each buffer size
@@ -83,7 +104,7 @@ def create_dataset(input_data, output_data):
         buffer_size=shuffle_buffer_size, reshuffle_each_iteration=False
     )
 
-    train_size = int(0.8 * len(intersection_dates))
+    train_size = int(train_split * len(intersection_dates))
     train_dataset = dataset.take(train_size)
     test_dataset = dataset.skip(train_size)
 
@@ -95,22 +116,25 @@ def create_dataset(input_data, output_data):
     train_dataset = train_dataset.batch(train_batch_size)
 
     # Fetch batches in the background while the model is training.
-    train_dataset = train_dataset.prefetch(buffer_size=16)
+    train_dataset = train_dataset.prefetch(prefetch_buffer_size)
 
     return train_dataset, test_dataset
-        
-def build_and_compile_model(norm):
-  model = tf.keras.Sequential([
-      tf.keras.Input(shape=(1,), batch_size=32),
-      norm,
-      tf.keras.layers.Dense(64, activation='relu'),
-      tf.keras.layers.Dense(64, activation='relu'),
-      tf.keras.layers.Dense(1)
-  ])
 
-  model.compile(loss='mean_absolute_error',
-                optimizer=tf.keras.optimizers.Adam(0.001))
-  return model
+
+def build_and_compile_model(norm):
+    model = tf.keras.Sequential(
+        [
+            tf.keras.Input(shape=(1,), batch_size=32),
+            norm,
+            #   tf.keras.layers.Dense(64, activation='relu'),
+            tf.keras.layers.Dense(64, activation="relu"),
+            tf.keras.layers.Dense(1),
+        ]
+    )
+
+    model.compile(loss="mean_absolute_error", optimizer=tf.keras.optimizers.Adam(0.001))
+    return model
+
 
 async def get_all_data_from_viam():
     # Make a ViamClient
@@ -120,18 +144,25 @@ async def get_all_data_from_viam():
 
     # Get all of the input data
     input_data = {}
-    input_data["temperature"] = await get_data_from_filter(data_client, create_filter(component_name="temperature"), "temperature") 
-    input_data["humidity"] = await get_data_from_filter(data_client, create_filter(component_name="humidity"), "humidity")
+    input_data["temperature"] = await get_data_from_filter(
+        data_client, create_filter(component_name="temperature"), "temperature"
+    )
+    input_data["humidity"] = await get_data_from_filter(
+        data_client, create_filter(component_name="humidity"), "humidity"
+    )
 
     # Get the output data
     output_filter = create_filter(component_name="precipitation")
-    output_data = await get_data_from_filter(data_client, output_filter, "precipitation")
+    output_data = await get_data_from_filter(
+        data_client, output_filter, "precipitation"
+    )
 
-    # Close ViamClient 
+    # Close ViamClient
     viam_client.close()
     return input_data, output_data
 
-if __name__ == '__main__':
+
+if __name__ == "__main__":
     # Set up compute device strategy
     if len(tf.config.list_physical_devices("GPU")) > 0:
         strategy = tf.distribute.OneDeviceStrategy(device="/gpu:0")
@@ -139,9 +170,7 @@ if __name__ == '__main__':
         strategy = tf.distribute.OneDeviceStrategy(device="/cpu:0")
 
     BATCH_SIZE = 16
-    SHUFFLE_BUFFER_SIZE = (
-        64  # Shuffle the training data by a chunk of 64 observations
-    )
+    SHUFFLE_BUFFER_SIZE = 64  # Shuffle the training data by a chunk of 64 observations
     AUTOTUNE = (
         tf.data.experimental.AUTOTUNE
     )  # Adapt preprocessing and prefetching dynamically
@@ -157,13 +186,16 @@ if __name__ == '__main__':
     input_data, output_data = asyncio.run(get_all_data_from_viam())
 
     # Create the datasets which includes cleaning it up to make sure they are synchronized
-    train_dataset, test_dataset = create_dataset(input_data, output_data)
+    train_dataset, test_dataset = create_dataset(
+        input_data,
+        output_data,
+        train_split=0.8,
+        batch_size=GLOBAL_BATCH_SIZE,
+        shuffle_buffer_size=SHUFFLE_BUFFER_SIZE,
+        prefetch_buffer_size=AUTOTUNE,
+    )
 
     normalizer = tf.keras.layers.Normalization(axis=-1)
     regression_model = build_and_compile_model(normalizer)
 
-    history = regression_model.fit(
-        train_dataset,
-        epochs=100)
-
-
+    history = regression_model.fit(train_dataset, epochs=EPOCHS)
