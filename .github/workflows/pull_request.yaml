@@ -13,7 +13,7 @@ jobs:
     uses: viam-modules/common-workflows/.github/workflows/lint_and_test.yaml@main
     with:
       test_script_name: scripts/test.sh
+    secrets: inherit
     env:
       API_KEY: ${{ secrets.VIAM_DEV_API_KEY }}
       API_KEY_ID: ${{ secrets.VIAM_DEV_API_KEY_ID }}
-    secrets: inherit
