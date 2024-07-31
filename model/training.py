@@ -7,9 +7,7 @@ import typing as ty
 import numpy as np
 import tensorflow as tf
 from tensorflow import keras
-from keras import Model
 import datetime
-import tensorflow as tf
 import viam
 from viam.utils import create_filter
 import asyncio
@@ -149,11 +147,11 @@ def build_and_compile_model(batch_size):
     """
     model = keras.models.Sequential(
         [
-            keras.models.Input(shape=(1,), batch_size=batch_size),
-            keras.models.layers.Normalization(axis=-1),
-            keras.models.layers.Dense(64, activation="relu"),
-            keras.models.layers.Dense(64, activation="relu"),
-            keras.models.layers.Dense(1),
+            keras.Input(shape=(1,), batch_size=batch_size),
+            keras.layers.Normalization(axis=-1),
+            keras.layers.Dense(64, activation="relu"),
+            keras.layers.Dense(64, activation="relu"),
+            keras.layers.Dense(1),
         ]
     )
 
