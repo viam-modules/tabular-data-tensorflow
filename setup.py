@@ -8,10 +8,9 @@ setup(
         "google-cloud-aiplatform",
         "google-cloud-storage",
         "keras==2.11.0",
-        "keras-cv==0.5.0",
         "Keras-Preprocessing==1.1.2",
-        "tflite-support",
         "viam-sdk==0.25.1",
+        "protobuf==3.20.*",
     ],
     include_package_data=True,
 )
