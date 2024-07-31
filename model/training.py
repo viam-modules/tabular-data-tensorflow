@@ -6,6 +6,7 @@ import typing as ty
 
 import numpy as np
 import tensorflow as tf
+from tensorflow import keras
 from keras import Model
 import datetime
 import tensorflow as tf
@@ -146,17 +147,17 @@ def build_and_compile_model(batch_size):
     Args:
         batch_size: batch size used for dataset creation
     """
-    model = tf.keras.Sequential(
+    model = keras.Sequential(
         [
-            tf.keras.Input(shape=(1,), batch_size=batch_size),
-            tf.keras.layers.Normalization(axis=-1),
-            tf.keras.layers.Dense(64, activation="relu"),
-            tf.keras.layers.Dense(64, activation="relu"),
-            tf.keras.layers.Dense(1),
+            keras.Input(shape=(1,), batch_size=batch_size),
+            keras.layers.Normalization(axis=-1),
+            keras.layers.Dense(64, activation="relu"),
+            keras.layers.Dense(64, activation="relu"),
+            keras.layers.Dense(1),
         ]
     )
 
-    model.compile(loss="mean_absolute_error", optimizer=tf.keras.optimizers.Adam(0.001))
+    model.compile(loss="mean_absolute_error", optimizer=keras.optimizers.Adam(0.001))
     return model
 
 
