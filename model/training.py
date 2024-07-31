@@ -1,7 +1,5 @@
 import argparse
-import json
 import os
-import sys
 import typing as ty
 
 import numpy as np
@@ -12,7 +10,7 @@ import viam
 from viam.utils import create_filter
 import asyncio
 
-from viam.rpc.dial import DialOptions, Credentials
+from viam.rpc.dial import DialOptions
 from viam.app.viam_client import ViamClient
 
 
