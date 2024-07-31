@@ -147,13 +147,13 @@ def build_and_compile_model(batch_size):
     Args:
         batch_size: batch size used for dataset creation
     """
-    model = keras.Sequential(
+    model = keras.models.Sequential(
         [
-            keras.Input(shape=(1,), batch_size=batch_size),
-            keras.layers.Normalization(axis=-1),
-            keras.layers.Dense(64, activation="relu"),
-            keras.layers.Dense(64, activation="relu"),
-            keras.layers.Dense(1),
+            keras.models.Input(shape=(1,), batch_size=batch_size),
+            keras.models.layers.Normalization(axis=-1),
+            keras.models.layers.Dense(64, activation="relu"),
+            keras.models.layers.Dense(64, activation="relu"),
+            keras.models.layers.Dense(1),
         ]
     )
 
