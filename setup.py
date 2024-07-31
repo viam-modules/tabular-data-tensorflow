@@ -7,7 +7,7 @@ setup(
     install_requires=[
         "google-cloud-aiplatform",
         "google-cloud-storage",
-        "keras==3.4.1",
+        "keras==2.14.0",
         "Keras-Preprocessing",
         "viam-sdk==0.25.2",
         "protobuf==4.25.3",
