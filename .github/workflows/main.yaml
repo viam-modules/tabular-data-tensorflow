@@ -1,0 +1,16 @@
+name: Deploy ML Training Image
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+    paths-ignore:
+      - 'README.md'
+
+jobs:
+  deploy-staging:
+    uses: viam-modules/common-workflows/.github/workflows/deploy_training_script.yaml@main
+    with:
+      framework: tensorflow
+      script_name: tabular-data-tensorflow
+    secrets: inherit
