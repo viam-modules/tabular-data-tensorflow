@@ -167,9 +167,7 @@ def build_and_compile_model(batch_size, input_names) -> Model:
     return model
 
 
-async def get_all_data_from_viam(
-    input_names, output_name
-) -> ty.Tuple[
+async def get_all_data_from_viam(input_names, output_name) -> ty.Tuple[
     Dict[str, Dict[datetime.datetime, List[DataClient.TabularData]]],
     Dict[datetime.datetime, List[DataClient.TabularData]],
 ]:
