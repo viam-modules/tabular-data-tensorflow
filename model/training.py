@@ -1,20 +1,22 @@
 import argparse
 import os
 import typing as ty
+from typing import Dict, List
 
 import numpy as np
 import tensorflow as tf
 from tensorflow import keras
+from keras import Model
 import datetime
-import viam
 from viam.utils import create_filter
 import asyncio
 
 from viam.rpc.dial import DialOptions
 from viam.app.viam_client import ViamClient
+from viam.app.data_client import DataClient
 
 
-def parse_args():
+def parse_args() -> ty.Tuple[str, str, str]:
     """Returns dataset file, model output directory, and num_epochs if present. These must be parsed as command line
     arguments and then used as the model input and output, respectively. The number of epochs can be used to optionally override the default.
     """
@@ -36,7 +38,9 @@ async def connect() -> ViamClient:
     return await ViamClient.create_from_dial_options(dial_options, "app.viam.com")
 
 
-async def get_data_from_filter(data_client, my_filter, reading_name):
+async def get_data_from_filter(
+    data_client, my_filter, reading_name
+) -> Dict[datetime.datetime, List[DataClient.TabularData]]:
     """Returns data for a filter based on the name in the sensor readings
     Args:
         data_client: an authenticated data client to query for the sensor data
@@ -138,11 +142,11 @@ def create_dataset(
     return train_dataset, test_dataset
 
 
-def build_and_compile_model(batch_size, input_names):
+def build_and_compile_model(batch_size, input_names) -> Model:
     """Returns built regression model with normalization layers
     Args:
         batch_size: batch size used for dataset creation
-        input_names:
+        input_names: names of the input data used for training
     """
     inputs = [
         keras.layers.Input(shape=(1,), batch_size=batch_size, name=name)
@@ -163,7 +167,12 @@ def build_and_compile_model(batch_size, input_names):
     return model
 
 
-async def get_all_data_from_viam(input_names, output_name):
+async def get_all_data_from_viam(
+    input_names, output_name
+) -> ty.Tuple[
+    Dict[str, Dict[datetime.datetime, List[DataClient.TabularData]]],
+    Dict[datetime.datetime, List[DataClient.TabularData]],
+]:
     """Returns input data and output data from Viam based on component names
     Args:
         input_names: list of component names used as input data
