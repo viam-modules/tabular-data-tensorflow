@@ -142,9 +142,12 @@ def build_and_compile_model(batch_size, input_names):
     """Returns built regression model with normalization layers
     Args:
         batch_size: batch size used for dataset creation
-        input_names: 
+        input_names:
     """
-    inputs = [keras.layers.Input(shape=(1,), batch_size=batch_size, name=name) for name in input_names]
+    inputs = [
+        keras.layers.Input(shape=(1,), batch_size=batch_size, name=name)
+        for name in input_names
+    ]
     merged = keras.layers.Concatenate(axis=1)(inputs)
     layers = keras.models.Sequential(
         [
