@@ -138,21 +138,24 @@ def create_dataset(
     return train_dataset, test_dataset
 
 
-def build_and_compile_model(batch_size):
+def build_and_compile_model(batch_size, input_names):
     """Returns built regression model with normalization layers
     Args:
         batch_size: batch size used for dataset creation
+        input_names: 
     """
-    model = keras.models.Sequential(
+    inputs = [keras.layers.Input(shape=(1,), batch_size=batch_size, name=name) for name in input_names]
+    merged = keras.layers.Concatenate(axis=1)(inputs)
+    layers = keras.models.Sequential(
         [
-            keras.Input(shape=(1,), batch_size=batch_size),
             keras.layers.Normalization(axis=-1),
             keras.layers.Dense(64, activation="relu"),
             keras.layers.Dense(64, activation="relu"),
-            keras.layers.Dense(1),
         ]
-    )
+    )(merged)
+    output = keras.layers.Dense(1)(layers)
 
+    model = keras.models.Model(inputs=inputs, outputs=output)
     model.compile(loss="mean_absolute_error", optimizer=keras.optimizers.Adam(0.001))
     return model
 
@@ -218,6 +221,7 @@ if __name__ == "__main__":
     EPOCHS = 200 if num_epochs == None or 0 else num_epochs
     # Query and process the data from Viam so only the fields relevant to training are used
     # Provide input names, a list of sensor values that will be used to model the output value, specified by output name.
+    input_names = ["temperature", "humidity"]
     input_data, output_data = asyncio.run(
         get_all_data_from_viam(["temperature", "humidity"], "precipitation")
     )
@@ -232,7 +236,7 @@ if __name__ == "__main__":
         prefetch_buffer_size=AUTOTUNE,
     )
 
-    regression_model = build_and_compile_model(BATCH_SIZE)
+    regression_model = build_and_compile_model(BATCH_SIZE, input_names)
 
     history = regression_model.fit(train_dataset, epochs=EPOCHS)
 
