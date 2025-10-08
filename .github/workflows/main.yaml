@@ -13,4 +13,7 @@ jobs:
     with:
       framework: tensorflow
       script_name: tabular-data-tensorflow
-    secrets: inherit
+    secrets: 
+      VIAM_API_KEY_ID: ${{ secrets.VIAM_DEV_API_KEY_ID }}
+      VIAM_API_KEY: ${{ secrets.VIAM_DEV_API_KEY }}
+      VIAM_ORG_ID: ${{ secrets.VIAM_DEV_ORG_ID }}
