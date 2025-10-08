@@ -17,3 +17,4 @@ jobs:
       VIAM_API_KEY_ID: ${{ secrets.VIAM_DEV_API_KEY_ID }}
       VIAM_API_KEY: ${{ secrets.VIAM_DEV_API_KEY }}
       VIAM_ORG_ID: ${{ secrets.VIAM_DEV_ORG_ID }}
+      VIAM_DATASET_ID: ${{ secrets.VIAM_DEV_DATASET_ID }}
